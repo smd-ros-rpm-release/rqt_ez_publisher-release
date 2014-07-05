@@ -1,22 +1,60 @@
+import copy
 import re
 import rospy
 import roslib.message
 import roslib.msgs
 from functools import reduce
 
+from rqt_py_common.topic_helpers import get_field_type
 
-def make_topic_strings(t, string=''):
+# initial string must be topic name for get_field_type
+def make_topic_strings(msg_instance, string=''):
+    if isinstance(msg_instance, list):
+        array_instance = get_field_type(string)[0]()
+        return make_topic_strings(array_instance, string + '[0]')
     try:
-        return [make_topic_strings(t.__getattribute__(slot), string + '/' + slot) for slot in t.__slots__]
+        return [make_topic_strings(msg_instance.__getattribute__(slot), string + '/' + slot)
+                for slot in msg_instance.__slots__]
     except AttributeError as e:
         return string
 
-
-def flatten(L):
-    if isinstance(L, list):
-        return reduce(lambda a, b: a + flatten(b), L, [])
+def set_msg_attribute_value(msg_instance, topic_name, type, attributes,
+                            array_index, value):
+    message_target = msg_instance
+    if len(attributes) >= 2:
+        full_string = topic_name
+        for attr in attributes[:-1]:
+            full_string += '/' + attr
+            m = re.search('(\w+)\[([0-9]+)\]', attr)
+            if m:
+                array_type = get_field_type(full_string)[0]
+                index = int(m.group(2))
+                while len(message_target.__getattribute__(m.group(1))) <= index:
+                    message_target.__getattribute__(m.group(1)).append(array_type())
+                message_target = message_target.__getattribute__(m.group(1))[index]
+            elif get_field_type(full_string)[1]: # this is impossible
+                array_type = get_field_type(full_string)[0]
+                if len(message_target.__getattribute__(attr)) == 0:
+                    message_target.__getattribute__(attr).append(array_type())
+                message_target = message_target.__getattribute__(attr)[0]
+            else:
+                message_target = message_target.__getattribute__(attr)
+    if array_index != None:
+        array = message_target.__getattribute__(attributes[-1])
+        while len(array) <= array_index:
+            array.append(type())
+        array[array_index] = value
+        message_target.__setattr__(attributes[-1], array)
     else:
-        return [L]
+        message_target.__setattr__(attributes[-1], value)
+    message_target = value
+
+
+def flatten(complicated_list):
+    if isinstance(complicated_list, list):
+        return reduce(lambda a, b: a + flatten(b), complicated_list, [])
+    else:
+        return [complicated_list]
 
 
 def find_topic_name(full_text, topic_dict):
@@ -52,7 +90,8 @@ def get_value_type(topic_type_str, attributes):
         print e
         return (None, False)
     try:
-        index = spec.names.index(attributes[0])
+        head_attribute = attributes[0].split('[')[0]
+        index = spec.names.index(head_attribute)
         field = spec.parsed_fields()[index]
         attr_type = field.base_type
         if field.is_builtin:
@@ -120,12 +159,32 @@ class EasyPublisherModel(object):
                 topic_name, message_class)
 
     def get_topic_break_down_strings(self, topic_name):
-        return flatten(make_topic_strings(
+        if topic_name in self._publishers:
+            return flatten(make_topic_strings(
                 self._publishers[topic_name].get_message(), topic_name))
+        else:
+            return []
 
     def get_topic_names(self):
         _, _, topic_types = rospy.get_master().getTopicTypes()
         return sorted([x[0] for x in topic_types])
+
+    def expand_attribute(self, input_text, array_index=None):
+        text = copy.copy(input_text)
+        try:
+            if get_field_type(text)[1]:
+                if array_index == None:
+                    index = 0
+                else:
+                    index = array_index
+                text += '[%s]'%index
+            type = get_field_type(text)[0]
+            if type:
+                return flatten(make_topic_strings(type(), text))
+            else:
+                return []
+        except AttributeError as e:
+            return []
 
     def resister_topic_by_text(self, text):
         _, _, topic_types = rospy.get_master().getTopicTypes()
