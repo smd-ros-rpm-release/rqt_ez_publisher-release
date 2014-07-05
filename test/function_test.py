@@ -28,6 +28,13 @@ class FunctionTest(unittest.TestCase):
         self.assertEqual(len(strings[0]), 3)
         self.assertTrue('/cmd_vel/header/frame_id' in strings[0])
 
+# This needs roscore and publisher
+#    def test_make_topic_strings_with_array(self):
+#        strings = ez_model.make_topic_strings(geo_msgs.Polygon(),
+#                                              '/polygon')
+#        self.assertEqual(len(strings), 1)
+#        self.assertEqual(strings[0], '/polygon/points')
+
     def test_flatten(self):
         flattened = ez_model.flatten([0, [[1, 2], 3, 4], [5, 6], [7], 8])
         self.assertEqual(len(flattened), 9)
@@ -84,6 +91,12 @@ class FunctionTest(unittest.TestCase):
         self.assertEqual(type, float)
         self.assertEqual(is_array, True)
 
+    def test_get_value_type_non_builtin_array(self):
+        type, is_array = ez_model.get_value_type(
+            'geometry_msgs/Polygon', ['points[0]', 'x'])
+        self.assertEqual(type, float)
+        self.assertEqual(is_array, False)
+
     def test_make_test(self):
         text = ez_model.make_text('/cmd_vel', ['linear', 'x'], None)
         self.assertEqual(text, '/cmd_vel/linear/x')
@@ -93,15 +106,8 @@ class FunctionTest(unittest.TestCase):
         self.assertEqual(text, '/cmd_vel/linear/x[2]')
 
 
-class ModelTest(unittest.TestCase):
-
-    def setUp(self):
-        self.model = ez_model.EasyPublisherModel()
-
-    def test_get_publisher_not_exists(self):
-        self.assertEqual(self.model.get_publisher('not_exists'), None)
-
 
 if __name__ == '__main__':
     import rosunit
-    rosunit.unitrun(PKG, 'dotcode_test', DotcodeTest)
+    rosunit.unitrun(PKG, 'function_test', FunctionTest)
+

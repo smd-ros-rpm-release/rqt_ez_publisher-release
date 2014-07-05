@@ -6,15 +6,24 @@ from python_qt_binding.QtCore import Qt, Signal, QTimer
 from .ez_publisher_model import *
 
 LCD_HEIGHT = 35
-PUBLISH_INTERVAL = 100 #[ms]
+DEFAULT_PUBLISH_INTERVAL = 100
+
 
 class TopicPublisherWithTimer(TopicPublisher):
+
+    publish_interval = DEFAULT_PUBLISH_INTERVAL
+
     def __init__(self, topic_name, message_class):
         TopicPublisher.__init__(self, topic_name, message_class)
         self._timer = None
         self._manager = None
 
-    def set_timer(self, interval, parent=None):
+    def update_timer_interval(self, interval):
+        if self._timer:
+            self._timer.setInterval(interval)
+
+    def set_timer(self, parent=None):
+        interval = self.publish_interval
         if not self._timer:
             self._timer = QTimer(parent=parent)
             self._timer.timeout.connect(self.publish)
@@ -90,7 +99,7 @@ class ValueWidget(QtGui.QWidget):
 
     def set_is_repeat(self, repeat_on):
         if repeat_on:
-            self._publisher.set_timer(PUBLISH_INTERVAL)
+            self._publisher.set_timer()
         else:
             self._publisher.stop_timer()
         self._publisher.request_update()
@@ -105,18 +114,8 @@ class ValueWidget(QtGui.QWidget):
         return self._text
 
     def publish_value(self, value):
-        message_target = self._publisher.get_message()
-        if len(self._attributes) >= 2:
-            for attr in self._attributes[:-1]:
-                message_target = message_target.__getattribute__(attr)
-        if self._array_index != None:
-            array = message_target.__getattribute__(self._attributes[-1])
-            while len(array) <= self._array_index:
-                array.append(self._type())
-            array[self._array_index] = value
-            message_target.__setattr__(self._attributes[-1], array)
-        else:
-            message_target.__setattr__(self._attributes[-1], value)
+        set_msg_attribute_value(self._publisher.get_message(), self._topic_name,
+                                self._type, self._attributes, self._array_index, value)
         self._publisher.publish()
 
     def setup_ui(self, name):
@@ -327,7 +326,7 @@ class EasyPublisherWidget(QtGui.QWidget):
             text = make_text(topic_name, attributes, array_index)
         return array_index
 
-    def add_widget(self, output_type, topic_name, attributes, array_index):
+    def add_widget(self, output_type, topic_name, attributes, array_index, position=None):
         widget_class = None
         type_class_dict = {float: DoubleValueWidget,
                            int: IntValueWidget,
@@ -352,8 +351,13 @@ class EasyPublisherWidget(QtGui.QWidget):
             lambda x: self.move_down_widget(widget))
         if widget.add_button:
             widget.add_button.clicked.connect(
-                lambda x: self.add_widget(output_type, topic_name, attributes, self.get_next_index(output_type, topic_name, attributes)))
-        self._main_vertical_layout.addWidget(widget)
+                lambda x: self.add_widget(output_type, topic_name, attributes,
+                                          self.get_next_index(output_type, topic_name, attributes),
+                                          self._main_vertical_layout.indexOf(widget) + 1))
+        if position:
+            self._main_vertical_layout.insertWidget(position, widget)
+        else:
+            self._main_vertical_layout.addWidget(widget)
         return True
 
     def move_down_widget(self, widget):
@@ -387,6 +391,9 @@ class EasyPublisherWidget(QtGui.QWidget):
                 # use index 0
                 array_index = 0
             self.add_widget(builtin_type, topic_name, attributes, array_index)
+        else:
+            for string in self._model.expand_attribute(text, array_index):
+                self.add_slider_by_text(string)
 
     def get_sliders_for_topic(self, topic):
         return [x for x in self._sliders if x.get_topic_name() == topic]
@@ -399,17 +406,26 @@ class EasyPublisherWidget(QtGui.QWidget):
             self.close_slider(widget, False)
         self._sliders = []
 
+    def update_combo_items(self):
+        self._combo.clear()
+        for topic in self._model.get_topic_names():
+            self._combo.addItem(topic)
+
     def setup_ui(self):
         horizontal_layout = QtGui.QHBoxLayout()
+        reload_button = QtGui.QPushButton(parent=self)
+        reload_button.setMaximumWidth(30)
+        reload_button.setIcon(self.style().standardIcon(QtGui.QStyle.SP_BrowserReload))
+        reload_button.clicked.connect(self.update_combo_items)
         topic_label = QtGui.QLabel('topic(+data member) name')
         clear_button = QtGui.QPushButton('all clear')
         clear_button.setMaximumWidth(200)
         clear_button.clicked.connect(self.clear_sliders)
         self._combo = QtGui.QComboBox()
         self._combo.setEditable(True)
-        for topic in self._model.get_topic_names():
-            self._combo.addItem(topic)
+        self.update_combo_items()
         self._combo.activated.connect(self.add_slider_from_combo)
+        horizontal_layout.addWidget(reload_button)
         horizontal_layout.addWidget(topic_label)
         horizontal_layout.addWidget(self._combo)
         horizontal_layout.addWidget(clear_button)
