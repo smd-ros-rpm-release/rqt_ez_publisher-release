@@ -9,12 +9,13 @@ LCD_HEIGHT = 35
 DEFAULT_PUBLISH_INTERVAL = 100
 
 
-class TopicPublisherWithTimer(TopicPublisher):
+class TopicPublisherWithTimer(TopicFillHeaderPublisher):
 
     publish_interval = DEFAULT_PUBLISH_INTERVAL
 
     def __init__(self, topic_name, message_class):
-        TopicPublisher.__init__(self, topic_name, message_class)
+        super(TopicPublisherWithTimer, self).__init__(
+            topic_name, message_class)
         self._timer = None
         self._manager = None
 
@@ -231,8 +232,8 @@ class UIntValueWidget(IntValueWidget):
 
 class DoubleValueWidget(ValueWidget):
 
-    DEFAULT_MAX_VALUE = 10.0
-    DEFAULT_MIN_VALUE = -10.0
+    DEFAULT_MAX_VALUE = 1.0
+    DEFAULT_MIN_VALUE = -1.0
 
     def __init__(self, topic_name, attributes, array_index, publisher,
                  parent=None):
@@ -246,7 +247,7 @@ class DoubleValueWidget(ValueWidget):
 
     def value_to_slider(self, value):
         return (value - self._min_spin_box.value()) / (
-            (self._max_spin_box.value() - self._min_spin_box.value()) * 100)
+            (self._max_spin_box.value() - self._min_spin_box.value())) * 100
 
     def slider_to_value(self, val):
         return self._min_spin_box.value() + (
@@ -371,7 +372,7 @@ class EasyPublisherWidget(QtGui.QWidget):
         if text in [x.get_text() for x in self._sliders]:
             self.sig_sysmsg.emit('%s is already exists' % text)
             return
-        results = self._model.resister_topic_by_text(text)
+        results = self._model.register_topic_by_text(text)
         if not results:
             self.sig_sysmsg.emit('%s does not exists' % text)
             return
