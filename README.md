@@ -1,3 +1,22 @@
+## rqt_ez_publisher (hydro) - 0.1.0-0
+
+The packages in the `rqt_ez_publisher` repository were released into the `hydro` distro by running `/usr/local/bin/bloom-release --rosdistro hydro --track hydro rqt_ez_publisher` on `Sun, 13 Jul 2014 09:21:03 -0000`
+
+The `rqt_ez_publisher` package was released.
+
+Version of package(s) in repository `rqt_ez_publisher`:
+- rosdistro version: `0.0.3-0`
+- old version: `0.0.5-0`
+- new version: `0.1.0-0`
+
+Versions of tools used:
+- bloom version: `0.5.10`
+- catkin_pkg version: `0.2.3`
+- rosdep version: `0.10.28`
+- rosdistro version: `0.3.5`
+- vcstools version: `0.1.35`
+
+
 ## rqt_ez_publisher (hydro) - 0.0.5-0
 
 The packages in the `rqt_ez_publisher` repository were released into the `hydro` distro by running `/usr/local/bin/bloom-release --rosdistro hydro --track hydro rqt_ez_publisher` on `Sun, 13 Jul 2014 09:18:49 -0000`
