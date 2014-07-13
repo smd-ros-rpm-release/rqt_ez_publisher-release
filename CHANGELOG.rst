@@ -2,13 +2,6 @@
 Changelog for package rqt_ez_publisher
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-0.1.0 (2014-07-13)
-------------------
-* Change default for double 1.0
-* Support tf and header
-* fix bug with array
-* fix type bug
-
 0.0.5 (2014-07-11)
 ------------------
 * Fix test wait
