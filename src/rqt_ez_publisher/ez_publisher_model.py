@@ -4,11 +4,12 @@ import re
 import roslib.message
 import roslib.msgs
 import rospy
-import tf2_msgs.msg
 from rqt_py_common import topic_helpers as helpers
 
 
 def get_field_type_capable_with_index(field_string):
+    '''get type even if it contains [] for array'''
+
     m = re.search('(.+)(\[[0-9]+\])$', field_string)
     if m:
         return helpers.get_field_type(m.group(1))
@@ -16,57 +17,71 @@ def get_field_type_capable_with_index(field_string):
         return helpers.get_field_type(field_string)
 
 
-def make_topic_strings(msg_instance, string=''):
+def make_topic_strings_internal(msg_instance, string='', modules=[]):
+    '''returns break down strings'''
+
     if msg_instance is None:
-        return string
+        return [string]
     if isinstance(msg_instance, list):
         msg_type = get_field_type_capable_with_index(string)[0]
         if msg_type is not None:
             array_instance = msg_type()
-            return make_topic_strings(array_instance, string + '[0]')
+            return make_topic_strings_internal(array_instance, string + '[0]', modules=modules)
         else:
             print 'not found type of %s' % string
-            return ''
+            return []
+    # this should be replaced by plugin system
+    for module in modules:
+        if isinstance(msg_instance, module.get_msg_class()):
+            return [string]
     try:
-        return [make_topic_strings(msg_instance.__getattribute__(slot),
-                                   string + '/' + slot)
+        return [make_topic_strings_internal(msg_instance.__getattribute__(slot),
+                                            string + '/' + slot, modules=modules)
                 for slot in msg_instance.__slots__]
     except AttributeError:
-        return string
+        return [string]
 
 
-def set_msg_attribute_value(msg_instance, topic_name, type, attributes,
+def set_msg_attribute_value(msg_instance, topic_name, msg_type, attributes,
                             array_index, value):
+    '''set value to the attribute of topic'''
     message_target = msg_instance
     if len(attributes) >= 2:
-        full_string = topic_name
-        for attr in attributes[:-1]:
-            full_string += '/' + attr
-            m = re.search('(\w+)\[([0-9]+)\]$', attr)
-            if m:
-                index = int(m.group(2))
-                attr = m.group(1)
-                array_type = get_field_type_capable_with_index(full_string)[0]
-                while len(message_target.__getattribute__(attr)) <= index:
-                    message_target.__getattribute__(attr).append(array_type())
-                message_target = message_target.__getattribute__(attr)[index]
-            elif get_field_type_capable_with_index(full_string)[1]:
-                print full_string
-                array_type = get_field_type_capable_with_index(full_string)[0]
-                if len(message_target.__getattribute__(attr)) == 0:
-                    message_target.__getattribute__(attr).append(array_type())
-                message_target = message_target.__getattribute__(attr)[0]
-            else:
-                message_target = message_target.__getattribute__(attr)
+        message_target = get_msg_attribute_value(
+            message_target, topic_name, attributes[:-1])
     if array_index is not None:
         array = message_target.__getattribute__(attributes[-1])
         while len(array) <= array_index:
-            array.append(type())
+            array.append(msg_type())
         array[array_index] = value
         message_target.__setattr__(attributes[-1], array)
     else:
         message_target.__setattr__(attributes[-1], value)
     message_target = value
+
+
+def get_msg_attribute_value(msg_instance, topic_name, attributes):
+    message_target = msg_instance
+    full_string = topic_name
+    for attr in attributes:
+        full_string += '/' + attr
+        m = re.search('(\w+)\[([0-9]+)\]$', attr)
+        if m:
+            index = int(m.group(2))
+            attr = m.group(1)
+            array_type = get_field_type_capable_with_index(full_string)[0]
+            while len(message_target.__getattribute__(attr)) <= index:
+                message_target.__getattribute__(attr).append(array_type())
+            message_target = message_target.__getattribute__(attr)[index]
+        elif get_field_type_capable_with_index(full_string)[1]:
+            print full_string
+            array_type = get_field_type_capable_with_index(full_string)[0]
+            if len(message_target.__getattribute__(attr)) == 0:
+                message_target.__getattribute__(attr).append(array_type())
+            message_target = message_target.__getattribute__(attr)[0]
+        else:
+            message_target = message_target.__getattribute__(attr)
+    return message_target
 
 
 def flatten(complicated_list):
@@ -75,6 +90,10 @@ def flatten(complicated_list):
                                 a + flatten(b), complicated_list, [])
     else:
         return [complicated_list]
+
+
+def make_topic_strings(msg_instance, string='', modules=[]):
+    return flatten(make_topic_strings_internal(msg_instance, string=string, modules=modules))
 
 
 def find_topic_name(full_text, topic_dict):
@@ -101,7 +120,7 @@ def find_topic_name(full_text, topic_dict):
         return (None, None, None)
 
 
-def get_value_type(topic_type_str, attributes):
+def get_value_type(topic_type_str, attributes, modules=[]):
     # for Header -> std_msgs/Header
     topic_type_str = roslib.msgs.resolve_type(topic_type_str, '')
     if not attributes:
@@ -131,7 +150,10 @@ def get_value_type(topic_type_str, attributes):
                 return (None, False)
             return (return_type, field.is_array)
         else:
-            return get_value_type(field.base_type, attributes[1:])
+            for module in modules:
+                if field.base_type == module.get_msg_string():
+                    return (module.get_msg_string(), field.is_array)
+            return get_value_type(field.base_type, attributes[1:], modules=modules)
     except ValueError:
         return (None, False)
     return (None, False)
@@ -144,52 +166,23 @@ def make_text(topic_name, attributes, array_index):
     return text
 
 
-class TopicPublisher(object):
+class EzPublisherModel(object):
 
-    def __init__(self, topic_name, message_class):
-        self._name = topic_name
-        self._publisher = rospy.Publisher(
-            topic_name, message_class, queue_size=100)
-        self._message = message_class()
+    '''Model for rqt_ez_publisher'''
 
-    def get_topic_name(self):
-        return self._name
-
-    def publish(self):
-        self._publisher.publish(self._message)
-
-    def get_message(self):
-        return self._message
-
-
-class TopicFillHeaderPublisher(TopicPublisher):
-
-    def __init__(self, topic_name, message_class):
-        super(TopicFillHeaderPublisher, self).__init__(
-            topic_name, message_class)
-        self._is_tf = False
-        if message_class == tf2_msgs.msg.TFMessage:
-            self._is_tf = True
-        self._has_header = False
-        if hasattr(self._message, 'header'):
-            if hasattr(self._message.header, 'stamp'):
-                self._has_header = True
-
-    def publish(self):
-        if self._is_tf:
-            now = rospy.Time.now()
-            for transform in self._message.transforms:
-                transform.header.stamp = now
-        if self._has_header:
-            self._message.header.stamp = rospy.Time.now()
-        super(TopicFillHeaderPublisher, self).publish()
-
-
-class EasyPublisherModel(object):
-
-    def __init__(self, publisher_class=TopicPublisher):
+    def __init__(self, publisher_class, modules=[]):
         self._publishers = {}
         self._publisher_class = publisher_class
+        self._modules = modules
+
+    def get_modules(self):
+        return self._modules
+
+    def set_modules(self, modules):
+        self._modules = modules
+
+    def add_module(self, module):
+        self._modules.append(module)
 
     def publish_topic(self, topic_name):
         if topic_name in self._publishers:
@@ -224,7 +217,7 @@ class EasyPublisherModel(object):
             if msg_type == int:  # for time ? not support
                 return []
             elif msg_type:
-                return flatten(make_topic_strings(msg_type(), text))
+                return make_topic_strings(msg_type(), text, modules=self._modules)
             else:
                 return []
         except AttributeError:
@@ -240,7 +233,8 @@ class EasyPublisherModel(object):
         topic_type_str = topic_dict[topic_name]
         message_class = roslib.message.get_message_class(topic_type_str)
         self._add_publisher_if_not_exists(topic_name, message_class)
-        builtin_type, is_array = get_value_type(topic_type_str, attributes)
+        builtin_type, is_array = get_value_type(
+            topic_type_str, attributes, modules=self._modules)
         return (topic_name, attributes, builtin_type, is_array, array_index)
 
     def shutdown(self):
