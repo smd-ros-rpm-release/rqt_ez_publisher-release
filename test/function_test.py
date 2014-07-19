@@ -4,6 +4,7 @@ import unittest
 import geometry_msgs.msg as geo_msgs
 
 import rqt_ez_publisher.ez_publisher_model as ez_model
+from rqt_ez_publisher import quaternion_module
 
 PKG='rqt_ez_publisher'
 
@@ -11,29 +12,25 @@ class FunctionTest(unittest.TestCase):
 
     def test_make_topic_strings(self):
         strings = ez_model.make_topic_strings(geo_msgs.Twist(), '/cmd_vel')
-        self.assertEqual(len(strings), 2)
-        self.assertEqual(len(strings[0]), 3)
-        self.assertEqual(len(strings[1]), 3)
-        self.assertTrue('/cmd_vel/linear/x' in strings[0])
-        self.assertTrue('/cmd_vel/linear/y' in strings[0])
-        self.assertTrue('/cmd_vel/linear/z' in strings[0])
-        self.assertTrue('/cmd_vel/angular/x' in strings[1])
-        self.assertTrue('/cmd_vel/angular/y' in strings[1])
-        self.assertTrue('/cmd_vel/angular/z' in strings[1])
+        self.assertEqual(len(strings), 6)
+        self.assertTrue('/cmd_vel/linear/x' in strings)
+        self.assertTrue('/cmd_vel/linear/y' in strings)
+        self.assertTrue('/cmd_vel/linear/z' in strings)
+        self.assertTrue('/cmd_vel/angular/x' in strings)
+        self.assertTrue('/cmd_vel/angular/y' in strings)
+        self.assertTrue('/cmd_vel/angular/z' in strings)
 
     def test_make_topic_strings_with_header(self):
         strings = ez_model.make_topic_strings(geo_msgs.PointStamped(),
                                               '/cmd_vel')
-        self.assertEqual(len(strings), 2)
-        self.assertEqual(len(strings[0]), 3)
-        self.assertTrue('/cmd_vel/header/frame_id' in strings[0])
-
-# This needs roscore and publisher
-#    def test_make_topic_strings_with_array(self):
-#        strings = ez_model.make_topic_strings(geo_msgs.Polygon(),
-#                                              '/polygon')
-#        self.assertEqual(len(strings), 1)
-#        self.assertEqual(strings[0], '/polygon/points')
+        self.assertEqual(len(strings), 7)
+        self.assertTrue('/cmd_vel/header/seq' in strings)
+        self.assertTrue('/cmd_vel/header/stamp/secs' in strings)
+        self.assertTrue('/cmd_vel/header/stamp/nsecs' in strings)
+        self.assertTrue('/cmd_vel/header/frame_id' in strings)
+        self.assertTrue('/cmd_vel/point/x' in strings)
+        self.assertTrue('/cmd_vel/point/y' in strings)
+        self.assertTrue('/cmd_vel/point/z' in strings)
 
     def test_flatten(self):
         flattened = ez_model.flatten([0, [[1, 2], 3, 4], [5, 6], [7], 8])
@@ -105,6 +102,15 @@ class FunctionTest(unittest.TestCase):
         text = ez_model.make_text('/cmd_vel', ['linear', 'x'], 2)
         self.assertEqual(text, '/cmd_vel/linear/x[2]')
 
+    def test_get_value_type_quaternion(self):
+        msg_type, is_array = ez_model.get_value_type('geometry_msgs/Pose', ['orientation'])
+        self.assertEqual(msg_type, None)
+        self.assertEqual(is_array, False)
+        msg_type, is_array = ez_model.get_value_type(
+            'geometry_msgs/Pose', ['orientation'],
+            modules=[quaternion_module.QuaternionModule()])
+        self.assertEqual(msg_type, 'geometry_msgs/Quaternion')
+        self.assertEqual(is_array, False)
 
 
 if __name__ == '__main__':
