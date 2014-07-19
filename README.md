@@ -1,3 +1,22 @@
+## rqt_ez_publisher (hydro) - 0.2.0-0
+
+The packages in the `rqt_ez_publisher` repository were released into the `hydro` distro by running `/usr/bin/bloom-release --rosdistro hydro --track hydro rqt_ez_publisher` on `Sat, 19 Jul 2014 14:52:45 -0000`
+
+The `rqt_ez_publisher` package was released.
+
+Version of package(s) in repository `rqt_ez_publisher`:
+- rosdistro version: `0.1.0-0`
+- old version: `0.1.0-0`
+- new version: `0.2.0-0`
+
+Versions of tools used:
+- bloom version: `0.5.10`
+- catkin_pkg version: `0.2.2`
+- rosdep version: `0.10.27`
+- rosdistro version: `0.3.5`
+- vcstools version: `0.1.35`
+
+
 ## rqt_ez_publisher (indigo) - 0.2.0-0
 
 The packages in the `rqt_ez_publisher` repository were released into the `indigo` distro by running `/usr/bin/bloom-release --rosdistro indigo --track indigo rqt_ez_publisher` on `Sat, 19 Jul 2014 14:50:01 -0000`
